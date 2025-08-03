@@ -17,7 +17,7 @@ COPY_SAFE_CONTAINERS = {"mp3", "m4a", "ogg", "aac", "flac", "m4a", "opus"}
 def mark_audio(
     input_path: str,
     output_path: str = None,
-    resolution: Tuple[int, int] = (1280, 720),
+    resolution: Tuple[int, int] = (1280, 256),
     overlay_text: str = None,
 ) -> None:
     """
@@ -50,12 +50,11 @@ def mark_audio(
         "ffmpeg", "-y",
         "-f", "lavfi", "-i", lavfi_source,
         "-i", input_path,
+        "-framerate", "1",
         "-map", "0:v:0",
         "-map", "1:a:0",
         "-c:v", "libx264",
-        "-r", "1",
         "-crf", "20",
-        "-frames:v", "1",
         "-pix_fmt", "yuv420p",
         "-c:a", "copy",
         output_path
