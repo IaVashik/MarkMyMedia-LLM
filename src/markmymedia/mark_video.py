@@ -58,7 +58,6 @@ def mark_video(
 
         # first video stream
         video_stream = next((s for s in streams if s.get("codec_type") == "video"), None)
-        print(video_stream)
         if not video_stream:
             raise InvalidMediaError("No video stream found in the input file.")
 
