@@ -7,7 +7,7 @@ A fast, simple utility to visually stamp media files with their filenames, prepa
 
 ## The Problem: Lost Context in Multimodal Sequences
 
-When you feed a sequence of media files (e.g., `cat.jpg`, `intro.mp3`, `dog_on_beach.mp4`) to a Large Language Model, the model sees a continuous stream of data. It lacks explicit, built-in separators or context about where one file ends and another begins, or what the original source of a particular frame or soundbite was.
+When you feed a sequence of media files (e.g., `portal 2 mod.jpg`, `intro.mp3`, `my homework.mp4`) to a Large Language Model, the model sees a continuous stream of data. It lacks explicit, built-in separators or context about where one file ends and another begins, or what the original source of a particular frame or soundbite was.
 
 This ambiguity makes it difficult to:
 -   Analyze which specific file triggered a response.
@@ -33,14 +33,46 @@ This way, the context is never lost. The model "sees" the filename associated wi
 -   **Recursive Search:** Point it at a directory, and it can process all nested media files.
 -   **Simple & Focused:** Does one job and does it well.
 
-## Prerequisites
+### How It Looks
 
-This tool relies on **FFmpeg** for all audio and video operations. You must have `ffmpeg` and `ffprobe` installed and available in your system's PATH.
+**MarkMyMedia** provides clear, unambiguous markers for each file type.
 
--   **Official Site:** [ffmpeg.org](https://ffmpeg.org/download.html)
--   **On macOS (via Homebrew):** `brew install ffmpeg`
--   **On Debian/Ubuntu:** `sudo apt update && sudo apt install ffmpeg`
--   **On Arch:** C'mon, you've already established it for sure :P
+#### 🖼️ Images
+
+A clean, readable marker with the filename is embedded directly onto the image. This ensures that even in a long sequence, the source of each image is immediately visible.
+
+![marked_img](https://github.com/LaVashikk/MarkMyMedia-LLM/blob/main/media//marked_img.jpg)
+
+*<p align="center">Example: A screenshot of a Discord message marked with its filename.</p>*
+
+#### 🎧 Audio
+
+Audio files are converted into a static video format. This clever workaround makes them visually identifiable in multimodal timelines and tools like Google AI Studio, where audio-only files might not provide visual cues. The entire audio track is preserved under a single, persistent frame showing its original filename.
+
+![markered_audio](https://github.com/LaVashikk/MarkMyMedia-LLM/blob/main/media//markered_audio.jpg)
+
+*<p align="center">The result is a standard video file, making the audio's presence known visually.</p>*
+
+![AI Studio](https://github.com/LaVashikk/MarkMyMedia-LLM/blob/main/media//markered_audio_gemini.jpg)
+
+#### 🎬 Video
+
+A short, 0.5-second marker clip is prepended to the video. This process is nearly instant because it **avoids re-encoding** the entire file, preserving the original quality and saving significant time.
+
+![some](https://github.com/LaVashikk/MarkMyMedia-LLM/blob/main/media//markered_vid.gif)
+
+*<p align="center">The model sees the filename right before the video content begins.</p>*
+
+
+## Technical Constraints
+
+1. This tool relies on **FFmpeg** for all audio and video operations. You must have `ffmpeg` and `ffprobe` installed and available in your system's PATH.
+2. To achieve high speed by avoiding full re-encoding, `MarkMyMedia` relies on **stream copying**. This approach is extremely fast but requires input files to meet specific format criteria.
+
+| Modality | Requirement | Reason & Details |
+| :--- | :--- | :--- |
+| **Video (`mark_video`)** | <ul><li>Video Codec: `h264` or `hevc`</li><li>Audio Codec: `aac` (if present)</li></ul> | **For preserving quality and speed.** Processing other codecs (like VP9 in `.webm`) will fail, as they cannot be directly concatenated in this workflow. |
+| **Audio (`mark_audio`)** | <ul><li>Always outputs a `.mp4` video file.</li><li>Audio Format: `mp3`, `flac`, `aac`, `m4a`, `ogg` or `opus`</li></ul> | **To create a visual marker.** The original audio stream is copied losslessly into the new video container, ensuring no quality is lost. |
 
 ## Installation
 
@@ -116,7 +148,7 @@ mark_video(
 
 ## Contributing
 
-Contributions are welcome! If you find a bug or have a feature request, please [open an issue](https://github.com/IaVashik/MarkMyMedia-LLM/issues).
+Contributions are welcome! If you find a bug or have a feature request, please [open an issue](https://github.com/LaVashikk/MarkMyMedia-LLM/blob/main/media//issues).
 
 ## License
 
