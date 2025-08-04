@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "MarkMyMedia"
+version = "1.0.0"
+description = "A fast, simple utility to visually stamp media files with their filenames, preparing them for multimodal LLM training and analysis."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [
+  { name = "laVashik", email = "me@lavashik.dev" },
+]
+keywords = ["multimodal", "llm", "ffmpeg", "media", "image-processing", "video-processing", "audio-processing", "utilities"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Multimedia :: Video",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Multimedia :: Sound/Audio",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Utilities",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+]
+dependencies = [
+    "Pillow"
+]
+
+[project.urls]
+Homepage = "https://github.com/LaVashikk/MarkMyMedia-LLM"
+"Bug Tracker" = "https://github.com/IaVashik/MarkMyMedia-LLM/issues"
+
+[project.scripts]
+markmymedia = "markmymedia.cli:main"
