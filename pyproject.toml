@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "MarkMyMedia"
-version = "1.0.0"
+version = "1.1.0"
 description = "A fast, simple utility to visually stamp media files with their filenames, preparing them for multimodal LLM training and analysis."
 readme = "README.md"
 requires-python = ">=3.8"
