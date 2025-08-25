@@ -1,8 +1,16 @@
 import os
+from pathlib import Path
 
 from .utils import _wrap_text
-
-from .errors import ImageMarkingError, InputFileNotFoundError
+from .errors import (
+    ImageMarkingError,
+    InputFileNotFoundError,
+    MarkerError,
+    UnsupportedFileTypeError,
+    InvalidOutputPathError,
+    FileError,
+)
+from .formats import IMAGE_EXTS
 from PIL import Image, ImageDraw, ImageFont
 
 def mark_image(
@@ -22,14 +30,38 @@ def mark_image(
         output_path (str, optional): Output path. Defaults to a modified name
                                      (e.g., 'image.jpg' -> 'image_marked.jpg').
     Raises:
-        ImageMarkingError: On any processing failure.
+        InputFileNotFoundError: If the input file does not exist.
+        UnsupportedFileTypeError: If the input file is not a supported image format.
+        InvalidOutputPathError: If the specified output path is invalid.
+        ImageMarkingError: On any other processing failure.
     """
-    if not os.path.exists(input_path):
-        raise ImageMarkingError(f"File not found: {input_path}")
+    input_p = Path(input_path)
+    if not input_p.exists():
+        raise InputFileNotFoundError(input_path)
+    if not input_p.is_file():
+        raise FileError(f"Input path is not a file: {input_path}")
+
+    if input_p.suffix.lower() not in IMAGE_EXTS:
+        raise UnsupportedFileTypeError(input_path, IMAGE_EXTS)
 
     if output_path is None:
-        base, ext = os.path.splitext(input_path)
-        output_path = f"{base}_marked{ext}"
+        output_p = input_p.with_stem(f"{input_p.stem}_marked")
+    else:
+        output_p = Path(output_path)
+        if output_p.suffix.lower() not in IMAGE_EXTS:
+            raise InvalidOutputPathError(
+                output_path,
+                f"Output file extension must be one of {', '.join(sorted(list(IMAGE_EXTS)))}",
+            )
+        if output_p.is_dir():
+            raise InvalidOutputPathError(output_path, "Output path cannot be a directory.")
+
+    try:
+        output_p.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        raise InvalidOutputPathError(
+            str(output_p), f"Could not create parent directory: {e}"
+        ) from e
 
     try:
         img = Image.open(input_path)
@@ -53,7 +85,7 @@ def mark_image(
         
         avg_char_width = font.getlength("abcdefghijklmnopqrstuvwxyz") / 26
         margin = int(width * 0.05)
-        max_chars = int((width - 2 * margin) / avg_char_width)
+        max_chars = int((width - 2 * margin) / avg_char_width) if avg_char_width > 0 else 20
         wrapped_text = _wrap_text(overlay_text, max_chars)
 
         # Position for the text block
@@ -69,9 +101,9 @@ def mark_image(
             stroke_fill="black"
         )
 
-        img.save(output_path)
+        img.save(str(output_p))
 
-    except FileNotFoundError:
-        raise InputFileNotFoundError(input_path)
     except Exception as e:
-        raise ImageMarkingError(f"An unexpected error occurred: {e}") from e
+        if isinstance(e, MarkerError):
+            raise
+        raise ImageMarkingError(f"An unexpected error occurred during image processing: {e}") from e

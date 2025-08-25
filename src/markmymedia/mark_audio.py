@@ -1,18 +1,22 @@
-
 import os
 import subprocess
 from typing import Tuple
+from pathlib import Path
 
 from .errors import (
     AudioMarkingError, 
     InputFileNotFoundError, 
     FFmpegNotFoundError, 
     FFmpegProcessError, 
-    InvalidMediaError
+    InvalidMediaError,
+    MarkerError,
+    UnsupportedFileTypeError,
+    InvalidOutputPathError,
+    FileError,
 )
+from .formats import AUDIO_EXTS
 from .utils import _generate_lavfi_drawtext
 
-COPY_SAFE_CONTAINERS = {"mp3", "m4a", "ogg", "aac", "flac", "m4a", "opus"}
 
 def mark_audio(
     input_path: str,
@@ -25,27 +29,44 @@ def mark_audio(
 
     Args:
         input_path (str): Path to the input audio file.
-        output_path (str, optional): Output video path. Defaults to same name with .mp4.
+        output_path (str, optional): Output video path. Must have a .mp4 extension.
         resolution (tuple): Video resolution (width, height).
 
     Raises:
-        AudioMarkingError: On any processing failure.
+        InputFileNotFoundError: If the input file does not exist.
+        UnsupportedFileTypeError: If the input file is not a supported audio format.
+        InvalidOutputPathError: If the specified output path is invalid.
+        AudioMarkingError: On any other processing failure.
     """
-    if not os.path.exists(input_path):
+    input_p = Path(input_path)
+    if not input_p.exists():
         raise InputFileNotFoundError(input_path)
-
+    if not input_p.is_file():
+        raise FileError(f"Input path is not a file: {input_path}")
+    
+    if input_p.suffix.lower() not in AUDIO_EXTS:
+        raise UnsupportedFileTypeError(input_path, AUDIO_EXTS)
+    
     if output_path is None:
-        base, _ = os.path.splitext(input_path)
-        output_path = f"{base}.mp4"
+        output_p = input_p.with_suffix(".mp4")
+    else:
+        output_p = Path(output_path)
+        if output_p.suffix.lower() != ".mp4":
+            raise InvalidOutputPathError(output_path, "Output file for marked audio must be an .mp4 file.")
+        if output_p.is_dir():
+            raise InvalidOutputPathError(output_path, "Output path cannot be a directory.")
+
+    try:
+        output_p.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        raise InvalidOutputPathError(
+            str(output_p), f"Could not create parent directory: {e}"
+        ) from e
 
     if overlay_text is None:
         overlay_text = "Filename: " + os.path.basename(input_path)
     lavfi_source = _generate_lavfi_drawtext(overlay_text, resolution)
     
-    ext = os.path.splitext(input_path)[1].lower().lstrip('.')
-    if ext not in COPY_SAFE_CONTAINERS:
-        raise InvalidMediaError(f"Container '{ext}' is not suitable for audio stream copying.")
-
     ffmpeg_cmd = [
         "ffmpeg", "-y",
         "-f", "lavfi", "-i", lavfi_source,
@@ -57,7 +78,7 @@ def mark_audio(
         "-crf", "20",
         "-pix_fmt", "yuv420p",
         "-c:a", "copy",
-        output_path
+        str(output_p)
     ]
 
     try:
@@ -72,4 +93,6 @@ def mark_audio(
     except subprocess.CalledProcessError as e:
         raise FFmpegProcessError(command=ffmpeg_cmd, stderr=e.stderr) from e
     except Exception as e:
+        if isinstance(e, MarkerError):
+            raise
         raise AudioMarkingError(f"An unexpected error occurred during audio marking: {e}") from e

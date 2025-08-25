@@ -11,12 +11,18 @@ __version__ = "1.0.0"
 from .mark_audio import mark_audio
 from .mark_image import mark_image
 from .mark_video import mark_video
+from .io import gather_files, categorize, construct_output_path
+from .errors import MarkerError
 
 __all__ = [
     "mark_audio",
     "mark_image",
     "mark_video",
     "check_ffmpeg_available",
+    "gather_files",
+    "categorize",
+    "construct_output_path",
+    "MarkerError",
     "__version__",
 ]
 

@@ -3,16 +3,22 @@ import os
 from typing import Tuple
 import tempfile
 import uuid
+from pathlib import Path
 
 from fractions import Fraction
 
 from .errors import (
+    MarkerError,
     VideoMarkingError,
     InputFileNotFoundError,
     InvalidMediaError,
     FFmpegNotFoundError,
     FFmpegProcessError,
+    UnsupportedFileTypeError,
+    InvalidOutputPathError,
+    FileError,
 )
+from .formats import VIDEO_EXTS
 from .utils import _ffprobe_param, _generate_lavfi_drawtext
 
 def mark_video(
@@ -22,29 +28,52 @@ def mark_video(
     overlay_text: str = None,
 ) -> None:
     """
-    Prepend a 0.5-second marker (black frame + filename text) to an existing MP4,
+    Prepend a 0.5-second marker (black frame + filename text) to an existing video,
     without re-encoding the original video/audio streams (only the marker).
 
     Args:
-        input_mp4 (str): path to source .mp4
-        output_mp4 (str, optional): path to result .mp4
-                                    (e.g., 'video.mp4' -> 'video_marked.mp4').
+        input_path (str): path to source video file.
+        output_path (str, optional): path to result video.
         resolution (tuple, optional): override (width, height). By default taken from input.
 
     Raises:
-        VideoMarkingError: on any failure
+        InputFileNotFoundError: If the input file does not exist.
+        UnsupportedFileTypeError: If the input file is not a supported video format.
+        InvalidOutputPathError: If the specified output path is invalid.
+        InvalidMediaError: If the video's codecs are not supported for stream copying.
+        VideoMarkingError: on any other failure.
     """
-    if not os.path.exists(input_path):
+    input_p = Path(input_path)
+    if not input_p.exists():
         raise InputFileNotFoundError(input_path)
+    if not input_p.is_file():
+        raise FileError(f"Input path is not a file: {input_path}")
+
+    if input_p.suffix.lower() not in VIDEO_EXTS:
+        raise UnsupportedFileTypeError(input_path, VIDEO_EXTS)
     
     if output_path is None:
-        base, ext = os.path.splitext(input_path)
-        output_path = f"{base}_marked{ext}"
+        output_p = input_p.with_stem(f"{input_p.stem}_marked")
+    else:
+        output_p = Path(output_path)
+        if output_p.suffix.lower() not in VIDEO_EXTS:
+            raise InvalidOutputPathError(
+                output_path,
+                f"Output file extension must be one of {', '.join(sorted(list(VIDEO_EXTS)))}",
+            )
+        if output_p.is_dir():
+            raise InvalidOutputPathError(output_path, "Output path cannot be a directory.")
+            
+    try:
+        output_p.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        raise InvalidOutputPathError(
+            str(output_p), f"Could not create parent directory: {e}"
+        ) from e
         
     marker_container = None
     marker_ts = None
     main_ts = None
-
 
     try:
         try:
@@ -78,7 +107,6 @@ def mark_video(
 
         # audio stream (if any)
         audio_stream = next((s for s in streams if s.get("codec_type") == "audio"), None)
-        audio_codec = None
         if audio_stream:
             audio_codec = audio_stream.get("codec_name", "").lower()
             if audio_codec not in (None, "", "aac"):
@@ -131,25 +159,23 @@ def mark_video(
             "-c", "copy"
         ]
         # if outputting to mp4 and AAC audio is present, apply a filter for correct packaging
-        if output_path.lower().endswith(".mp4"):
+        if str(output_p).lower().endswith(".mp4"):
             final_cmd += ["-bsf:a", "aac_adtstoasc"]
-        final_cmd.append(output_path)
+        final_cmd.append(str(output_p))
         subprocess.run(final_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
 
-    except FileNotFoundError:
-        raise FFmpegNotFoundError()
     except subprocess.CalledProcessError as e:
-        raise FFmpegProcessError(command=e.cmd, stderr=e.stderr) from e
-    except (VideoMarkingError, InvalidMediaError):
-        raise # Re-raise our specific errors
+        raise FFmpegProcessError(command=e.cmd, stderr=e.stderr.decode('utf-8', 'ignore')) from e
+    except (VideoMarkingError, InvalidMediaError, FFmpegNotFoundError):
+        raise
     except Exception as e:
+        if isinstance(e, MarkerError):
+            raise
         raise VideoMarkingError(f"An unexpected error occurred during marking: {e}") from e
     finally:
-        # cleanup temporary files (best-effort)
         for p in (marker_container, marker_ts, main_ts):
-            try:
-                if os.path.exists(p):
+            if p and os.path.exists(p):
+                try:
                     os.remove(p)
-            except Exception:
-                pass
-
+                except OSError:
+                    pass

@@ -15,6 +15,14 @@ class InputFileNotFoundError(FileError):
         super().__init__(f"Input file not found: {path}")
 
 
+class InvalidOutputPathError(FileError):
+    """Raised for issues with a specified output path."""
+    def __init__(self, path: str, reason: str):
+        self.path = path
+        self.reason = reason
+        super().__init__(f"Invalid output path: '{path}'. Reason: {reason}")
+
+
 class DependencyError(MarkerError):
     """Base exception for missing external dependencies."""
     pass
@@ -46,6 +54,23 @@ class FFmpegProcessError(DependencyError):
 class MediaProcessingError(MarkerError):
     """Base exception for errors during the media marking process."""
     pass
+
+
+class UnsupportedFileTypeError(MediaProcessingError):
+    """Raised when an input file's type is not supported for the operation."""
+    def __init__(self, path: str, supported_formats: set[str]):
+        self.path = path
+        self.supported_formats = supported_formats
+        try:
+            ext = path.split('.')[-1]
+            msg_ext = f"'.{ext}'"
+        except IndexError:
+            msg_ext = "with no extension"
+
+        super().__init__(
+            f"File type {msg_ext} is not supported for this operation. "
+            f"Supported formats are: {', '.join(sorted(list(supported_formats)))}"
+        )
 
 
 class AudioMarkingError(MediaProcessingError):
